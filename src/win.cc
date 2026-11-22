@@ -279,6 +279,7 @@ static bool                      shown        = false;
 static bool                      dirty        = true;
 static Uint32                    last_present = 0;
 static int                       idle_ticks   = 0;
+static const Uint32              frame_ms     = 15;   /* at most ~66 fps */
 static bool                      user_sized   = false;
 static int                       req_w        = 0;
 static int                       req_h        = 0;
@@ -293,13 +294,43 @@ static SDL_Cursor                *cursors [sizeof (x_cursor_glyphs) /
                                            sizeof (x_cursor_glyphs [0])];
 static int                       shown_cursor  = -1;
 
+static bool                      sdl_closed    = false;
+
 static void mark_dirty ()
   {dirty      = true;
    idle_ticks = 0;
   }
 
+/* Closes the window and SDL before the process ends. CRAFT quits with  */
+/* exit (), so this runs as an exit handler, and exit handlers run in   */
+/* reverse order of registration. The GL driver is loaded only when the */
+/* renderer is created, and some drivers (NVIDIA) register exit handlers */
+/* that unload parts of themselves; SDL must be shut down before those  */
+/* run, or freeing the texture calls into unloaded code. So this handler */
+/* is registered again once the renderer exists and whenever a texture  */
+/* has been presented; it does its work only the first time.           */
+
+static void sdl_shutdown ()
+  {if (! sdl_ready)
+      return;
+   sdl_ready  = false;
+   sdl_closed = true;
+   if (texture != NULL)
+      SDL_DestroyTexture (texture);
+   if (renderer != NULL)
+      SDL_DestroyRenderer (renderer);
+   if (sdl_win != NULL)
+      SDL_DestroyWindow (sdl_win);
+   texture  = NULL;
+   renderer = NULL;
+   sdl_win  = NULL;
+   for (size_t i = 0; i < sizeof (cursors) / sizeof (cursors [0]); i++)
+     cursors [i] = NULL;                       /* SDL_Quit frees them */
+   SDL_Quit ();
+  }
+
 static void sdl_core_init ()
-  {if (sdl_ready)
+  {if (sdl_ready || sdl_closed)
       return;
    SDL_SetHint (SDL_HINT_APP_NAME,    "xcraft");
    SDL_SetHint (SDL_HINT_VIDEODRIVER, "wayland,x11");   /* Wayland first */
@@ -310,7 +341,7 @@ static void sdl_core_init ()
            exit (1);
           }
       }
-   atexit (SDL_Quit);
+   atexit (sdl_shutdown);
    sdl_ready = true;
   }
 
@@ -355,7 +386,7 @@ static void fit_window ()
   }
 
 static void open_sdl_window ()
-  {if (sdl_win != NULL)
+  {if (sdl_win != NULL || sdl_closed)
       return;
    sdl_core_init ();
    sdl_win = SDL_CreateWindow ("xcraft",
@@ -375,6 +406,7 @@ static void open_sdl_window ()
                 SDL_GetError ());
        exit (1);
       }
+   atexit (sdl_shutdown);                      /* after the driver's */
    for (size_t i = 0; i < sizeof (cursors) / sizeof (cursors [0]); i++)
      {const x_cursor_glyph &g = x_cursor_glyphs [i];
 
@@ -526,7 +558,10 @@ static void draw_border (win *w)
 static void present ()
   {if (sdl_win == NULL || desk_w <= 0 || desk_h <= 0)
       return;
-   if (tex_w != desk_w || tex_h != desk_h || texture == NULL)
+
+   bool new_texture = tex_w != desk_w || tex_h != desk_h || texture == NULL;
+
+   if (new_texture)
       {if (texture != NULL)
           SDL_DestroyTexture (texture);
        texture = SDL_CreateTexture (renderer, SDL_PIXELFORMAT_RGB888,
@@ -559,6 +594,8 @@ static void present ()
    SDL_RenderClear        (renderer);
    SDL_RenderCopy         (renderer, texture, NULL, NULL);
    SDL_RenderPresent      (renderer);
+   if (new_texture)
+      atexit (sdl_shutdown);          /* drivers may load more lazily */
    if (! shown)
       {SDL_ShowWindow (sdl_win);
        shown = true;
@@ -780,6 +817,7 @@ static int xbutton_of (Uint8 sdl_button)
 static void handle_event (const SDL_Event &e)
   {switch (e.type)
      {case SDL_QUIT :
+        sdl_shutdown ();
         exit (0);
 
       case SDL_WINDOWEVENT :
@@ -929,7 +967,7 @@ static bool pump ()
 static void service ()
   {bool any = pump ();
 
-   if (dirty && SDL_GetTicks () - last_present >= 15)
+   if (dirty && SDL_GetTicks () - last_present >= frame_ms)
       present ();
    if (any)
       idle_ticks = 0;
@@ -948,13 +986,20 @@ void delay (int dt)
    idle_ticks = 0;
    for (;;)
      {pump ();
-      if (dirty)
-         present ();
+
+      Uint32 since = SDL_GetTicks () - last_present;
+
+      if (dirty && since >= frame_ms)
+         {present ();
+          since = 0;
+         }
 
       int rest = (int) (end - SDL_GetTicks ());
 
       if (rest <= 0)
          break;
+      if (dirty)                     /* wake up for the next frame */
+         rest = std::min (rest, std::max (1, (int) frame_ms - (int) since));
       SDL_WaitEventTimeout (NULL, rest);
      }
   }

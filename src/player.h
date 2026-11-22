@@ -1,5 +1,6 @@
 /* 2026-11-22 xcraft-sdl: class getline renamed getline_field; the old name
-   clashes with POSIX getline () from stdio.h. */
+   clashes with POSIX getline () from stdio.h.
+   New: s_speed and show_speed_value (), the game speed slider. */
 
 #ifndef player_h
 #define player_h
@@ -8,6 +9,7 @@
 #include "win.h"
 #include "cmap.h"
 #include "buttons.h"
+#include "scroller.h"
 #include "craft.h"
 #include "dial.h"
 #include "color_trans.h"
@@ -108,6 +110,7 @@ class player
    bool   is_debug;
    button *b_debug;
    button *b_quit;
+   scroller *s_speed;                    /* xcraft-sdl */
    button *b_unit_s  [5];
    button *b_unit_l  [5];
    button *cmds      [20];
@@ -190,6 +193,7 @@ class player
    void show_percent        (int x,int y,int dx,int dy,int p,char title []);
    void clear_percent       (int x,int y,int dx,int dy);
    void clear_status        ();
+   void show_speed_value    ();          /* xcraft-sdl */
    void show_status         (int id, bool is_first_time);
 
    void push_cmd            (char name [], 

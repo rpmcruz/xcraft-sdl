@@ -13,6 +13,8 @@ $H move 490 524; sleep 0.3; $H click; sleep 0.5   # seed field
 $H key 1997; $H keyname Return; sleep 0.5
 $H shot "$OUT/menu.png"
 $H move 695 450; sleep 0.3; $H click; sleep 5     # Play
+$H move 159 614                                    # speed slider: 4x -> 1x
+for i in 1 2 3 4; do sleep 0.3; $H click; done
 $H move 1000 700
 
 ( for i in $(seq -w 1 140); do $H shot "$OUT/f$i.png"; sleep 0.12; done ) &

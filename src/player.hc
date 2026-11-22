@@ -1,5 +1,8 @@
 /* 2026-11-22 xcraft-sdl: class getline renamed getline_field; the old name
-   clashes with POSIX getline () from stdio.h. */
+   clashes with POSIX getline () from stdio.h.
+   A "speed" slider above the quit button sets the game speed (game_speed
+   of craft.hc) while playing; clear_status no longer clears that area,
+   which the command buttons (at most 19) never reach. */
 
 #include "player.h"
 #include "masks.h"
@@ -12,6 +15,7 @@
 #include "robot.h"
 #include "ship.h"
 #include "xstring.h"
+#include "scroller.h"
 
 #define cur_point_to        2
 #define cur_point_to_unit   24
@@ -65,6 +69,7 @@ player::player (int    pno,
       open_w_msg;
       load_pictures;
       open_quit;
+      open_speed;
       perhaps_open_debug;
      }.
 
@@ -266,6 +271,15 @@ player::player (int    pno,
      {b_quit  = new button (w_status, "quit", 90, 640);
      }.
 
+.  open_speed
+     {w_status->set_color      (black);
+      w_status->set_background (gray80);
+      w_status->write          (20, 618, "speed");
+      s_speed = new scroller ("", w_status, 56, 606, 100, 0,
+                              0, num_game_speeds () - 1, 0, game_speed, 1, 3);
+      show_speed_value ();
+     }.
+
 .  perhaps_open_debug
      {is_debug = false;
       debug_on = false;
@@ -301,6 +315,7 @@ void player::deactivate ()
       delete_pics;
       delete_cmds;
       delete (b_quit);
+      delete (s_speed);
       delete (w_land);
       delete (w_overview);
 /*
@@ -990,6 +1005,7 @@ void player::get_cmds (bool &is_quit,
       handle_cmds;
       handle_overview_move;
       handle_quit;
+      handle_speed;
       handle_admin;
       handle_pause;
       if (w_unit->is_mouse (d, d, d))
@@ -1932,6 +1948,15 @@ void player::get_cmds (bool &is_quit,
       my = i_bound (0, my, landscape_dy - 1);
      }.
 
+.  handle_speed
+     {int s = game_speed;
+
+      if (s_speed->eval (s))
+         {game_speed = s;
+          show_speed_value ();
+         };
+     }.
+
 .  handle_quit
      {if (b_quit->eval ())
          handle_quit_pressed;
@@ -2149,6 +2174,15 @@ void player::clear_percent (int x, int y, int dx, int dy)
 
   }
 
+void player::show_speed_value ()
+  {char a [16];
+
+   sprintf (a, "%-5s", game_speed_name (game_speed));
+   w_status->set_color      (black);
+   w_status->set_background (gray80);
+   w_status->write          (162, 618, a);
+  }
+
 void player::clear_status ()
   {if (! is_robot)
       perform_show;
@@ -2156,7 +2190,7 @@ void player::clear_status ()
 .  perform_show
      {clear_cmds;
       w_status->set_color (gray80);
-      w_status->fill      (10, 10, 180, 630);
+      w_status->fill      (10, 10, 180, 590);
       if (is_dial)
          close_dial;
      }.

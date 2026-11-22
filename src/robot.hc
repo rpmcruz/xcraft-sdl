@@ -1,6 +1,11 @@
 /* 2026-11-22 xcraft-sdl: Functions robot::look_for_dock_place returned no value on some paths (undefined behaviour,
-   modern compilers trap there); they now return one. */
+   modern compilers trap there); they now return one.
+   The constructor clears the per-unit tables (doing, dir, s_*), which were
+   never initialized: the ship code reads s_dest before setting it, and with
+   recycled heap memory that index crashed isle_goal. isle_goal also returns
+   false for an island number that does not exist. */
 
+#include "string.h"
 #include "robot.h"
 #include "building.h"
 #include "craft_def.h"
@@ -49,8 +54,20 @@ int xwdh (int x, int y)
 robot::robot (int my_color, int my_pno)
   {store_params;
    init_status;
+   clear_unit_tables;
    init_f;
    get_tps;
+
+.  clear_unit_tables
+     {memset (doing,          0, sizeof (doing));
+      memset (dir,            0, sizeof (dir));
+      memset (s_crew_worker,  0, sizeof (s_crew_worker));
+      memset (s_crew_fighter, 0, sizeof (s_crew_fighter));
+      memset (s_crew_healer,  0, sizeof (s_crew_healer));
+      memset (s_last_enter,   0, sizeof (s_last_enter));
+      memset (s_last_cnt,     0, sizeof (s_last_cnt));
+      memset (s_dest,         0, sizeof (s_dest));
+     }.
 
 .  get_tps
      {ntp = 0;
@@ -2370,6 +2387,8 @@ bool robot::isle_goal (int o, int isle, int &xg, int &yg)
    double xx;
    double yy;
 
+   if (isle < 0 || isle >= ilf->num_il)
+      return false;
    xx = ilf->x_il [isle];
    yy = ilf->y_il [isle];
    dx = (double) i_random (-4, 4) / 4.0;

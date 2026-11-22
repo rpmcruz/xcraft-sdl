@@ -1,3 +1,6 @@
+/* 2026-11-22 xcraft-sdl: declares game_speed, num_game_speeds () and
+   game_speed_name () for the speed slider (see craft.hc). */
+
 #ifndef craft_h
 #define craft_h
 
@@ -9,6 +12,11 @@ class object_handler;
 
 extern double         robo_power;
 extern double         robo_agress;
+
+/* xcraft-sdl: game speed of the speed slider (index, see craft.hc) */
+extern int            game_speed;
+int                   num_game_speeds ();
+const char            *game_speed_name (int s);
 
 extern int            q_step;
 

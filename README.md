@@ -16,7 +16,7 @@ a current compiler. The game itself is unchanged.
 ![Gameplay](docs/gameplay.gif)
 
 *A worker starts a town hall, another worker walks to the forest and the king
-explores the coast. Recorded on Wayland at the original speed (seed 1997).*
+explores the coast. Recorded on Wayland at speed 1x (seed 1997).*
 
 ## Running it
 
@@ -57,7 +57,8 @@ The option screen comes first:
 * **General**: play with a king (lose him and you lose), local sight (fog
   of war), islands, and a **seed** for the random world. The same seed gives
   the same map.
-* **Details**: world size and game speed.
+* **Details**: world size and unit speed (how many game cycles a unit needs
+  for each step).
 * **Human / Computer**: player names and the strength and aggressiveness of
   the computer players.
 * **Play** starts the game and **Exit** quits.
@@ -74,7 +75,13 @@ In the game:
 | Letter keys (pointer over the map) | the capital letter of an order, e.g. `A` for tr**A**p |
 | `1`–`4` / `5`–`8` (or the flag / sword buttons) | store / recall unit groups |
 | your **player** button (left side) | pause / resume |
+| **speed** slider (above **quit**) | game speed, from 1/2x to 64x, and **max**; change it at any time |
 | `F11` or `Alt+Enter` | toggle fullscreen |
+
+The game starts at speed 4x. Speed 1x is the pace CRAFT was written for, 20
+game cycles per second. On a modern computer that feels slow, so pick
+whatever suits you. **max** does not wait at all, which is far too fast to
+play.
 
 You can resize or maximise the window and the game is stretched to fill it,
 with no black bars. The initial window size is the largest whole-number scale
@@ -105,10 +112,12 @@ alone:
   and `tools/cursor2c.py`, so no font or X library is needed at runtime.
 * The colours are the X11 `rgb.txt` values of the 63 named colours CRAFT
   allocates.
-* **Speed:** the main loop aims for a 50 ms game cycle (`min_cycle_time` in
-  `craft.hc`). The original `delay()` slept `dt*10` microseconds instead of
-  `dt` milliseconds, so on fast machines that cycle was never enforced. The
-  port waits the intended 50 ms. The **Details** speed slider works as before.
+* **Speed:** the main loop was written for a game cycle of at least 50 ms
+  (`min_cycle_time` in `craft.hc`), that is at most 20 cycles per second. The
+  original `delay()` slept `dt*10` microseconds instead of `dt` milliseconds,
+  so that limit was never enforced: on a 2026 PC the original runs about
+  1,700 cycles per second. The port paces the cycles by the **speed** slider
+  instead. Speed 1x is the 50 ms cycle, and **max** does not wait.
 * The sources are written in "hierarchical C++": named refinements
   (`. name { ... }.`) inside functions. The original preprocessor `hcc` (in
   `tools/hcc`) expands them to plain C++ under `build/gen` before compiling.
@@ -122,6 +131,10 @@ Fixes needed for a modern compiler and C library:
 * Several functions could end without returning a value. GCC now turns that
   into a crash; they return a value now.
 * `hcc` crashed for the same reason.
+* The computer players' ship code read a table (`s_dest` in `robot.hc`)
+  before storing anything in it. That was harmless while fresh memory was
+  zero, but with reused memory it crashed after a few minutes of play. The
+  tables are now cleared when a computer player is created.
 * `ftime()` was replaced with `gettimeofday()`.
 
 Every changed file starts with a dated note saying what was changed, as the

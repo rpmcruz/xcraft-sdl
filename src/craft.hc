@@ -1,5 +1,7 @@
 /* 2026-11-22 xcraft-sdl: main () returns int and first calls win_startup ()
-   to change into the game data directory (SDL2 port). */
+   to change into the game data directory (SDL2 port).
+   The game speed (game cycles per second) can be changed while playing
+   with the speed slider of the status panel (game_speed, pace_cycle ()). */
 
 #include "win.h"
 #include "cmap.h"
@@ -19,6 +21,46 @@
 
 
 #define        min_cycle_time  50
+
+/* xcraft-sdl: game speeds. 1x is the 50 ms cycle (min_cycle_time) the   */
+/* game was written for; 0 stands for "max", no waiting at all (on a     */
+/* modern machine that is what the original did, as its delay () waited */
+/* microseconds instead of milliseconds).                               */
+
+static const double game_speed_factor [] =
+  {0.5, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 0};
+static const char   *game_speed_label [] =
+  {"1/2x", "1x", "1.5x", "2x", "3x", "4x", "6x", "8x", "12x", "16x", "24x",
+   "32x", "48x", "64x", "max"};
+
+int            game_speed = 5;                                   /* 4x */
+
+int num_game_speeds ()
+  {return (int) (sizeof (game_speed_factor) / sizeof (game_speed_factor [0]));
+  }
+
+const char *game_speed_name (int s)
+  {return game_speed_label [i_bound (0, s, num_game_speeds () - 1)];
+  }
+
+/* waits for the end of the current game cycle. The deadline runs on, so */
+/* cycles shorter than a millisecond keep the right average rate; after a */
+/* stall (pause, dialog, a slow cycle) the game does not hurry to catch   */
+/* up.                                                                    */
+
+static void pace_cycle ()
+  {static double next   = -1.0;
+   double        factor = game_speed_factor [i_bound (0, game_speed,
+                                                      num_game_speeds () - 1)];
+   double        now    = (double) x_sys_time ();
+
+   if (factor <= 0.0 || next < 0.0 || now - next > 100.0)
+      next = now;
+   if (factor > 0.0)
+      next += min_cycle_time / factor;
+   if (next - now >= 1.0)
+      delay ((int) (next - now));
+  }
 
 double         robo_power;
 double         robo_agress;
@@ -555,22 +597,13 @@ int main (int num_params, char *shell_params [])
 
 .  cycle
      {int    suspend = -1;
-      double cycle_start_time = x_sys_time ();
 
       read_cmds;
       if (h % 3 == 0)
          check_pause;
       exec_objects;
       check_over;
-      perhaps_delay;
-     }.
-
-.  perhaps_delay
-     {int rest_dt = (int)(min_cycle_time - (x_sys_time () - cycle_start_time));
-
-      if (rest_dt > 10)
-         {delay (rest_dt);
-         };
+      pace_cycle ();       /* xcraft-sdl: was a 50 ms minimum cycle time */
      }.
 
 .  check_pause
